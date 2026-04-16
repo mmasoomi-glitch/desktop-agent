@@ -2,12 +2,12 @@
 """Desktop Agent — an AI assistant that watches your screen and gives advice.
 
 Usage:
-    export ANTHROPIC_API_KEY="sk-ant-..."
+    export OPENAI_API_KEY="sk-..."
     python main.py [--interval 30] [--monitor 0] [--once]
 
 Environment variables:
-    ANTHROPIC_API_KEY              Required. Your Anthropic API key.
-    DESKTOP_AGENT_MODEL            Model to use (default: claude-sonnet-4-20250514).
+    OPENAI_API_KEY                 Required. Your OpenAI API key.
+    DESKTOP_AGENT_MODEL            Model to use (default: gpt-4o).
     DESKTOP_AGENT_INTERVAL         Capture interval in seconds (default: 30).
     DESKTOP_AGENT_PROMPT           Custom system prompt for the advisor.
 """
@@ -50,10 +50,15 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="List available monitors and exit.",
     )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Run in demo mode (no API calls, simulated advice).",
+    )
     return parser.parse_args()
 
 
-def run_cycle(monitor_index: int) -> None:
+def run_cycle(monitor_index: int, demo: bool = False) -> None:
     """Capture screen, analyze, and notify if there's advice."""
     timestamp = datetime.now().strftime("%H:%M:%S")
     print(f"[{timestamp}] Capturing screen...")
@@ -64,13 +69,18 @@ def run_cycle(monitor_index: int) -> None:
         print(f"[{timestamp}] Screen capture failed: {e}")
         return
 
-    print(f"[{timestamp}] Analyzing with Claude...")
+    size_kb = len(image_b64) * 3 // 4 // 1024
+    print(f"[{timestamp}] Screenshot captured ({size_kb} KB)")
 
-    try:
-        advice = analyze_screenshot(image_b64)
-    except Exception as e:
-        print(f"[{timestamp}] Analysis failed: {e}")
-        return
+    if demo:
+        advice = "Demo mode: Your screen was captured successfully! In live mode, GPT-4o would analyze this and give real advice."
+    else:
+        print(f"[{timestamp}] Analyzing with GPT-4o...")
+        try:
+            advice = analyze_screenshot(image_b64)
+        except Exception as e:
+            print(f"[{timestamp}] Analysis failed: {e}")
+            return
 
     if advice:
         print(f"[{timestamp}] Advice: {advice}")
@@ -90,9 +100,10 @@ def main() -> None:
             print(f"  [{m['index']}] {label}: {m['width']}x{m['height']}")
         return
 
-    if not config.ANTHROPIC_API_KEY:
-        print("Error: ANTHROPIC_API_KEY environment variable is not set.")
-        print("  export ANTHROPIC_API_KEY='sk-ant-...'")
+    if not args.demo and not config.OPENAI_API_KEY:
+        print("Error: OPENAI_API_KEY environment variable is not set.")
+        print("  export OPENAI_API_KEY='sk-...'")
+        print("  Or run with --demo to test without an API key.")
         sys.exit(1)
 
     print("=" * 50)
@@ -117,11 +128,11 @@ def main() -> None:
     signal.signal(signal.SIGTERM, handle_signal)
 
     if args.once:
-        run_cycle(args.monitor)
+        run_cycle(args.monitor, demo=args.demo)
         return
 
     while running:
-        run_cycle(args.monitor)
+        run_cycle(args.monitor, demo=args.demo)
         # Sleep in small increments so Ctrl+C is responsive
         for _ in range(args.interval * 10):
             if not running:

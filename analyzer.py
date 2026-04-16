@@ -1,60 +1,57 @@
-"""Claude vision analyzer — sends screenshots to the API and returns advice."""
+"""OpenAI GPT-4o vision analyzer — sends screenshots to the API and returns advice."""
 
-import anthropic
+from openai import OpenAI
 
-from config import ANTHROPIC_API_KEY, MODEL, SYSTEM_PROMPT
+from config import OPENAI_API_KEY, MODEL, SYSTEM_PROMPT
 
 _NOTHING_TAG = "NOTHING_TO_REPORT"
 
 
-def _build_client() -> anthropic.Anthropic:
-    if not ANTHROPIC_API_KEY:
+def _build_client() -> OpenAI:
+    if not OPENAI_API_KEY:
         raise RuntimeError(
-            "ANTHROPIC_API_KEY environment variable is not set. "
+            "OPENAI_API_KEY environment variable is not set. "
             "Export it before running the agent."
         )
-    return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    return OpenAI(api_key=OPENAI_API_KEY)
 
 
 def analyze_screenshot(image_b64: str, context: str = "") -> str | None:
-    """Send a base64 screenshot to Claude and get advice back.
+    """Send a base64 screenshot to GPT-4o and get advice back.
 
     Args:
         image_b64: Base64-encoded JPEG screenshot.
-        context: Optional extra context to include (e.g. recent advice history).
+        context: Optional extra context to include.
 
     Returns:
         Advice string, or None if nothing noteworthy was found.
     """
     client = _build_client()
 
-    user_content: list[dict] = [
+    user_content = [
         {
-            "type": "image",
-            "source": {
-                "type": "base64",
-                "media_type": "image/jpeg",
-                "data": image_b64,
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:image/jpeg;base64,{image_b64}",
+                "detail": "low",
             },
+        },
+        {
+            "type": "text",
+            "text": context if context else "What do you see on my screen? Any advice?",
         },
     ]
 
-    if context:
-        user_content.append({"type": "text", "text": context})
-    else:
-        user_content.append({
-            "type": "text",
-            "text": "What do you see on my screen? Any advice?",
-        })
-
-    response = client.messages.create(
+    response = client.chat.completions.create(
         model=MODEL,
         max_tokens=300,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_content}],
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_content},
+        ],
     )
 
-    text = response.content[0].text.strip()
+    text = response.choices[0].message.content.strip()
     if _NOTHING_TAG in text:
         return None
     return text

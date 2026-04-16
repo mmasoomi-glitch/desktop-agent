@@ -1,8 +1,14 @@
 import os
+from pathlib import Path
 
-# Claude API
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-MODEL = os.environ.get("DESKTOP_AGENT_MODEL", "claude-sonnet-4-20250514")
+from dotenv import load_dotenv
+
+# Load .env from project root
+load_dotenv(Path(__file__).parent / ".env")
+
+# OpenAI API
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+MODEL = os.environ.get("DESKTOP_AGENT_MODEL", "gpt-4o")
 
 # Screen capture
 CAPTURE_INTERVAL_SECONDS = int(os.environ.get("DESKTOP_AGENT_INTERVAL", "30"))
